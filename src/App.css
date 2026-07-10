@@ -1,0 +1,52 @@
+/* App-level overrides — most styles live in index.css */
+
+/* Reviews grid responsive */
+@media (max-width: 900px) {
+  .reviews-grid { grid-template-columns: 1fr !important; }
+}
+
+/* Input focus styles */
+input:focus, select:focus, textarea:focus {
+  border-color: rgba(0,229,255,0.4) !important;
+  box-shadow: 0 0 0 3px rgba(0,229,255,0.08);
+  outline: none;
+}
+input::placeholder, textarea::placeholder { color: rgba(255,255,255,0.2); }
+select option { background: #0d0d1a; color: #fff; }
+
+/* Light mode overrides */
+body.light-mode input, body.light-mode textarea, body.light-mode select {
+  color: #0a0a1a; background: rgba(0,0,0,0.04); border-color: rgba(0,0,0,0.12);
+}
+body.light-mode input::placeholder, body.light-mode textarea::placeholder { color: rgba(0,0,0,0.3); }
+body.light-mode .nav-links a { color: rgba(0,0,0,0.6); }
+body.light-mode .btn-outline { color: #0a0a1a; border-color: rgba(0,0,0,0.2); }
+body.light-mode .btn-outline:hover { background: rgba(0,229,255,0.08); }
+
+/* ── Mobile hero buttons full width ── */
+@media (max-width: 480px) {
+  .hero-btns { flex-direction: column !important; align-items: center !important; }
+  .hero-btns a { width: 100% !important; max-width: 320px; justify-content: center !important; }
+
+  /* Process 3-col → 1-col */
+  #process [class*="glass"] { width: 100%; }
+
+  /* About features 2-col → 1-col */
+  .about-feat-grid { grid-template-columns: 1fr !important; }
+
+  /* Contact form rows → 1-col */
+  .contact-row { grid-template-columns: 1fr !important; }
+}
+
+@media (max-width: 768px) {
+  /* Footer CTA banner */
+  footer [style*="justify-content: 'space-between'"] {
+    flex-direction: column !important;
+    text-align: center !important;
+  }
+  /* FAQ max width */
+  #faq { padding: 60px 0 !important; }
+
+  /* Testimonials show only center */
+  .reviews-3col > *:not(:nth-child(2)) { opacity: 0.5 !important; transform: scale(0.95) !important; }
+}
