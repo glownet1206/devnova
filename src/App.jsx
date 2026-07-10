@@ -68,7 +68,7 @@ export default function App() {
 
       {/* WhatsApp floating button */}
       <a
-        href="https://wa.me/923123456789"
+        href="https://wa.me/97430225869"
         target="_blank"
         rel="noopener noreferrer"
         className="whatsapp-btn"

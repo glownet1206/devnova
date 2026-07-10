@@ -104,9 +104,9 @@ export default function Contact() {
 
             {/* Contact info cards */}
             {[
-              { Icon:MdEmail,      label:'Email Us',  value:'hello@devnova.studio',          color:'#00E5FF' },
-              { Icon:MdPhone,      label:'WhatsApp',  value:'+92 312 345 6789',              color:'#25D366' },
-              { Icon:MdLocationOn, label:'Location',  value:'Lahore, PK · Remote Worldwide', color:'#7B61FF' },
+              { Icon:MdEmail,      label:'Email Us',  value:'devnovastudio30@gmail.com',          color:'#00E5FF' },
+              { Icon:MdPhone,      label:'WhatsApp',  value:'+974 30225869',              color:'#25D366' },
+              { Icon:MdLocationOn, label:'Location',  value:'Qatar, Doha · Remote Worldwide', color:'#7B61FF' },
             ].map(({ Icon, label, value, color }, i) => (
               <div key={i} style={{
                 display:'flex', alignItems:'center', gap:16,
@@ -180,7 +180,7 @@ export default function Contact() {
                     <input required type="email" value={form.email}
                       onChange={e=>setForm({...form,email:e.target.value})}
                       onFocus={()=>setFocused('email')} onBlur={()=>setFocused('')}
-                      placeholder="john@company.com" style={iStyle}/>
+                      placeholder="example@company.com" style={iStyle}/>
                   </FormField>
                 </div>
 
