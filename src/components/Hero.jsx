@@ -64,30 +64,31 @@ export default function Hero() {
     return () => obs.disconnect();
   }, []);
 
-  // Mouse parallax
+  // Mouse parallax — throttled via RAF to avoid layout thrashing
   useEffect(() => {
+    let rafPending = false;
     const onMove = (e) => {
       const { innerWidth: w, innerHeight: h } = window;
       mouseRef.current = {
         x: (e.clientX / w - 0.5) * 2,
         y: (e.clientY / h - 0.5) * 2,
       };
-      if (laptopRef.current) {
-        laptopRef.current.style.transform = `
-          perspective(1200px)
-          rotateY(${mouseRef.current.x * 8}deg)
-          rotateX(${-mouseRef.current.y * 4}deg)
-          translateZ(20px)
-        `;
-      }
-      // Parallax for floating shapes
-      particlesRef.current.forEach((el, i) => {
-        if (!el) return;
-        const depth = 0.02 + i * 0.01;
-        el.style.transform = `translate(${mouseRef.current.x * 40 * depth}px, ${mouseRef.current.y * 30 * depth}px)`;
+      if (rafPending) return;
+      rafPending = true;
+      requestAnimationFrame(() => {
+        rafPending = false;
+        const { x, y } = mouseRef.current;
+        if (laptopRef.current) {
+          laptopRef.current.style.transform = `perspective(1200px) rotateY(${x * 8}deg) rotateX(${-y * 4}deg) translateZ(20px)`;
+        }
+        particlesRef.current.forEach((el, i) => {
+          if (!el) return;
+          const depth = 0.02 + i * 0.01;
+          el.style.transform = `translate(${x * 40 * depth}px, ${y * 30 * depth}px)`;
+        });
       });
     };
-    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mousemove', onMove, { passive: true });
     return () => window.removeEventListener('mousemove', onMove);
   }, []);
 

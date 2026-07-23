@@ -18,17 +18,20 @@ import { MessageCircle } from 'lucide-react';
 
 export default function App() {
   const [loaded, setLoaded] = useState(false);
-  const [scrollProgress, setScrollProgress] = useState(0);
+  const scrollBarRef = useRef(null);
 
-  // Scroll progress
+  // Scroll progress — direct DOM update, no setState/re-render
   useEffect(() => {
+    const bar = scrollBarRef.current;
+    if (!bar) return;
     const onScroll = () => {
       const total = document.documentElement.scrollHeight - window.innerHeight;
-      setScrollProgress(total > 0 ? (window.scrollY / total) * 100 : 0);
+      const pct = total > 0 ? (window.scrollY / total) * 100 : 0;
+      bar.style.width = pct + '%';
     };
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
-  }, []);
+  }, [loaded]);
 
   if (!loaded) {
     return <Loader onDone={() => setLoaded(true)} />;
@@ -40,7 +43,7 @@ export default function App() {
       <Cursor />
 
       {/* Scroll progress */}
-      <div className="scroll-progress" style={{ width: `${scrollProgress}%` }} />
+      <div ref={scrollBarRef} className="scroll-progress" style={{ width: '0%' }} />
 
       {/* Noise overlay */}
       <div className="noise-overlay" />

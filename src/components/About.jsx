@@ -35,16 +35,16 @@ export default function About() {
         <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:72, alignItems:'start' }}
           className="about-grid">
 
-          {/* LEFT — Dotted Wireframe Sphere */}
+          {/* LEFT — Dotted Sphere */}
           <div className="reveal-left about-globe" style={{
             display:'flex', justifyContent:'center', alignItems:'center',
-            position:'sticky', top:'20vh',
+            position:'sticky', top:'20vh', order: 1,
           }}>
             <DottedSphere />
           </div>
 
           {/* RIGHT — Content */}
-          <div className="reveal-right">
+          <div className="reveal-right" style={{ order: 2 }}>
             <div className="section-tag" style={{ marginBottom:16 }}>Why Choose DevNova</div>
 
             <h2 style={{ fontFamily:'var(--font-main)', fontSize:'clamp(2.2rem,3.8vw,3.2rem)',
@@ -79,9 +79,24 @@ export default function About() {
 
       <style>{`
         @media(max-width:860px){
-          .about-grid{ grid-template-columns:1fr !important; gap:48px !important; }
-          .about-globe{ display:none !important; }
+          .about-grid{ grid-template-columns:1fr !important; gap:32px !important; }
+          .about-globe{
+            position:static !important;
+            display:flex !important;
+            justify-content:center !important;
+            align-items:center !important;
+            order: 2 !important;
+          }
+          .about-globe canvas{ width:280px !important; height:280px !important; }
+          .about-feat-grid{ grid-template-columns:repeat(2,1fr) !important; }
+          .reveal-right{ order: 1 !important; }
+        }
+        @media(max-width:480px){
+          .about-globe canvas{ width:240px !important; height:240px !important; }
           .about-feat-grid{ grid-template-columns:1fr !important; }
+        }
+        @media(max-width:360px){
+          .about-globe canvas{ width:200px !important; height:200px !important; }
         }
       `}</style>
     </section>
@@ -114,106 +129,243 @@ function FeatureRow({ Icon, text, sub }) {
   );
 }
 
-/* ── Dotted Wireframe Sphere ── */
+/* ══════════════════════════════════════════════════════
+   DottedSphere
+   - Each dot has its OWN angular speed on its ring
+   - Dots move independently → ring shape evolves over time
+   - Touch/mouse drag with inertia
+   ══════════════════════════════════════════════════════ */
 function DottedSphere() {
-  const ref = useRef(null);
+  const canvasRef = useRef(null);
+  const stateRef  = useRef({
+    dragX: 0, dragY: 0,
+    velX: 0,  velY: 0,
+    dragging: false,
+    lastTX: 0, lastTY: 0,
+    visible: true,
+  });
 
   useEffect(() => {
-    const canvas = ref.current;
+    const canvas = canvasRef.current;
     if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    const S = 420, cx = S/2, cy = S/2, R = 165;
-    let t = 0, raf;
+    const ctx = canvas.getContext('2d', { willReadFrequently: false, alpha: true });
 
-    // Project a 3D point onto 2D with rotation
-    const rotate3D = (x, y, z, rx, ry, rz) => {
-      // rotate Z
-      let tx = x*Math.cos(rz) - y*Math.sin(rz);
-      let ty = x*Math.sin(rz) + y*Math.cos(rz);
-      let tz = z;
-      x=tx; y=ty; z=tz;
-      // rotate X
-      tx=x; ty=y*Math.cos(rx)-z*Math.sin(rx); tz=y*Math.sin(rx)+z*Math.cos(rx);
-      x=tx; y=ty; z=tz;
-      // rotate Y
-      tx=x*Math.cos(ry)+z*Math.sin(ry); tz=-x*Math.sin(ry)+z*Math.cos(ry);
-      x=tx; z=tz;
-      return [x, y, z];
-    };
+    /* hi-dpi */
+    const DPR  = Math.min(window.devicePixelRatio || 1, 2);
+    const SIZE = 420;
+    canvas.width  = SIZE * DPR;
+    canvas.height = SIZE * DPR;
+    canvas.style.width  = SIZE + 'px';
+    canvas.style.height = SIZE + 'px';
+    ctx.scale(DPR, DPR);
 
-    // Draw a dotted great circle
-    const drawDottedCircle = (tiltX, tiltZ, speed, dotAlpha) => {
-      const DOTS = 80;
-      for (let i = 0; i < DOTS; i++) {
-        const θ = (i / DOTS) * Math.PI * 2;
-        const [x, y, z] = rotate3D(
-          Math.cos(θ), Math.sin(θ), 0,
-          tiltX, t * speed, tiltZ
-        );
-        const depth = (z + 1) / 2; // 0..1, 1=front
-        const alpha = dotAlpha * (0.25 + 0.75 * depth);
-        const size  = 1.6 + 1.2 * depth;
-        const px = cx + x * R;
-        const py = cy + y * R;
-        ctx.beginPath();
-        ctx.arc(px, py, size, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(0,255,190,${alpha})`;
-        ctx.fill();
+    const cx = SIZE / 2, cy = SIZE / 2, R = 158;
+
+    /* alpha lookup — no string allocation per frame */
+    const STEPS = 40;
+    const COLS  = Array.from({ length: STEPS + 1 }, (_, i) =>
+      `rgba(0,255,185,${(i / STEPS).toFixed(3)})`
+    );
+    const col = (a) => COLS[Math.round(Math.min(Math.max(a, 0), 1) * STEPS)];
+
+    /* rotation — writes to _x _y _z */
+    let _x = 0, _y = 0, _z = 0;
+    function rot(x, y, z, rx, ry) {
+      let cosY = Math.cos(ry), sinY = Math.sin(ry);
+      let tx = x * cosY + z * sinY, tz = -x * sinY + z * cosY;
+      x = tx; z = tz;
+      let cosX = Math.cos(rx), sinX = Math.sin(rx);
+      let ty = y * cosX - z * sinX; tz = y * sinX + z * cosX;
+      y = ty; z = tz;
+      _x = x; _y = y; _z = z;
+    }
+
+    /* ── Build particle array ──
+       Each particle: θ (current angle on ring), speed (its own), ring geometry, style
+    */
+    const particles = [];
+
+    function addRing(tiltX, tiltZ, count, alphaBase, sizeBase, baseSpeed) {
+      const cosRZ = Math.cos(tiltZ), sinRZ = Math.sin(tiltZ);
+      const cosRX = Math.cos(tiltX), sinRX = Math.sin(tiltX);
+      for (let i = 0; i < count; i++) {
+        particles.push({
+          θ: (i / count) * Math.PI * 2,              // starting angle spread evenly
+          speed: baseSpeed * (0.5 + Math.random()),   // each dot its OWN speed
+          cosRZ, sinRZ, cosRX, sinRX,
+          alphaBase,
+          sizeBase,
+        });
       }
-    };
+    }
 
-    const draw = () => {
-      ctx.clearRect(0, 0, S, S);
+    /* latitude rings */
+    [-1.1, -0.78, -0.5, -0.25, 0, 0.25, 0.5, 0.78, 1.1].forEach((lat, li) => {
+      addRing(lat, li * 0.04, 70, 0.75, 1.4, 0.009 + (li % 3) * 0.003);
+    });
 
-      // ambient glow
-      const g = ctx.createRadialGradient(cx,cy,R*0.3,cx,cy,R*1.5);
-      g.addColorStop(0,'rgba(0,255,190,0.05)');
-      g.addColorStop(1,'transparent');
-      ctx.fillStyle=g; ctx.fillRect(0,0,S,S);
+    /* longitude rings */
+    for (let i = 0; i < 7; i++) {
+      addRing(0, (Math.PI / 7) * i, 70, 0.55, 1.4, 0.007 + (i % 4) * 0.003);
+    }
 
-      t += 0.008;
+    /* tilted rings */
+    [
+      [0.48,  Math.PI / 4,  70, 0.50, 1.4, 0.011],
+      [-0.48, Math.PI / 4,  70, 0.50, 1.4, 0.011],
+      [0.85,  Math.PI / 6,  70, 0.40, 1.4, 0.008],
+      [-0.85, -Math.PI / 6, 70, 0.40, 1.4, 0.008],
+    ].forEach(([tx, tz, n, a, s, sp]) => addRing(tx, tz, n, a, s, sp));
 
-      // Latitude circles (horizontal, different tilts give sphere feel)
-      const latAngles = [-1.2, -0.9, -0.6, -0.3, 0, 0.3, 0.6, 0.9, 1.2];
-      latAngles.forEach(lat => {
-        drawDottedCircle(lat, 0, 1.0, 0.9);
-      });
+    /* equator ring — same size as rest */
+    addRing(0, 0, 70, 0.90, 1.4, 0.010);
 
-      // Longitude circles (vertical great circles at different azimuths)
-      const lonCount = 7;
-      for (let i = 0; i < lonCount; i++) {
-        const az = (Math.PI / lonCount) * i;
-        drawDottedCircle(0, az, 0.8, 0.7);
-      }
+    /* ── RAF loop ── */
+    let last = 0, raf;
+    const FPS_MS   = 1000 / 40;
+    const BASE_RX  = 0.35;
+    const WORLD_SPD = 0.005; // slow global rotation so dots feel like they orbit
+    const s = stateRef.current;
+    let worldRY = 0;
 
-      // Extra tilted rings for organic complexity (like the reference image)
-      const tilted = [
-        [0.5,  Math.PI/4,  1.2],
-        [-0.5, Math.PI/4,  1.2],
-        [0.8,  Math.PI/6,  0.9],
-        [-0.8, -Math.PI/6, 0.9],
-      ];
-      tilted.forEach(([tx, tz, sp]) => {
-        drawDottedCircle(tx, tz, sp, 0.55);
-      });
-
+    const draw = (now) => {
       raf = requestAnimationFrame(draw);
+      if (!s.visible) return;
+      const el = now - last;
+      if (el < FPS_MS) return;
+      last = now - (el % FPS_MS);
+
+      worldRY += WORLD_SPD;
+      if (!s.dragging) {
+        s.velX *= 0.93; s.velY *= 0.93;
+        s.dragX += s.velX; s.dragY += s.velY;
+      }
+
+      const ry = worldRY + s.dragY;
+      const rx = BASE_RX  + s.dragX;
+
+      ctx.clearRect(0, 0, SIZE, SIZE);
+
+      /* ambient glow */
+      const g = ctx.createRadialGradient(cx, cy, R * 0.1, cx, cy, R * 1.1);
+      g.addColorStop(0, 'rgba(0,255,185,0.03)');
+      g.addColorStop(1, 'transparent');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, SIZE, SIZE);
+
+      /* draw all particles */
+      for (let i = 0; i < particles.length; i++) {
+        const p = particles[i];
+
+        /* advance this dot's OWN angle — this is what makes them move individually */
+        p.θ += p.speed;
+
+        const θ = p.θ;
+        let x = Math.cos(θ), y = Math.sin(θ), z = 0;
+
+        /* apply ring's latitude tilt */
+        let ty = y * p.cosRX - z * p.sinRX;
+        let tz = y * p.sinRX + z * p.cosRX;
+        y = ty; z = tz;
+
+        /* apply ring's longitude tilt */
+        let tx = x * p.cosRZ - z * p.sinRZ;
+        tz     = x * p.sinRZ + z * p.cosRZ;
+        x = tx; z = tz;
+
+        /* global world rotation */
+        rot(x, y, z, rx, ry);
+
+        const depth = (_z + 1) * 0.5;
+        if (depth < 0.04) continue;
+
+        const a    = p.alphaBase * (0.18 + 0.82 * depth);
+        const size = p.sizeBase; // uniform size — no depth scaling
+
+        ctx.beginPath();
+        ctx.arc(cx + _x * R, cy + _y * R, size, 0, Math.PI * 2);
+        ctx.fillStyle = col(a);
+        if (depth > 0.62) {
+          ctx.shadowColor = 'rgba(0,255,185,0.8)';
+          ctx.shadowBlur  = p.sizeBase > 2 ? 9 : 5;
+        }
+        ctx.fill();
+        ctx.shadowBlur = 0;
+      }
     };
 
-    draw();
-    return () => cancelAnimationFrame(raf);
+    /* touch drag */
+    const onTouchStart = (e) => {
+      s.dragging = true;
+      s.lastTX = e.touches[0].clientX; s.lastTY = e.touches[0].clientY;
+      s.velX = s.velY = 0;
+    };
+    const onTouchMove = (e) => {
+      if (!s.dragging) return;
+      e.preventDefault();
+      const dx = e.touches[0].clientX - s.lastTX;
+      const dy = e.touches[0].clientY - s.lastTY;
+      s.velY = dx * 0.012; s.velX = dy * 0.012;
+      s.dragY += s.velY;   s.dragX += s.velX;
+      s.lastTX = e.touches[0].clientX; s.lastTY = e.touches[0].clientY;
+    };
+    const onTouchEnd = () => { s.dragging = false; };
+
+    /* mouse drag */
+    const onMouseDown = (e) => {
+      s.dragging = true;
+      s.lastTX = e.clientX; s.lastTY = e.clientY;
+      s.velX = s.velY = 0;
+      canvas.style.cursor = 'grabbing';
+    };
+    const onMouseMove = (e) => {
+      if (!s.dragging) return;
+      const dx = e.clientX - s.lastTX, dy = e.clientY - s.lastTY;
+      s.velY = dx * 0.010; s.velX = dy * 0.010;
+      s.dragY += s.velY;   s.dragX += s.velX;
+      s.lastTX = e.clientX; s.lastTY = e.clientY;
+    };
+    const onMouseUp = () => { s.dragging = false; canvas.style.cursor = 'grab'; };
+
+    canvas.addEventListener('touchstart', onTouchStart, { passive: true });
+    canvas.addEventListener('touchmove',  onTouchMove,  { passive: false });
+    canvas.addEventListener('touchend',   onTouchEnd);
+    canvas.addEventListener('mousedown',  onMouseDown);
+    window.addEventListener('mousemove',  onMouseMove);
+    window.addEventListener('mouseup',    onMouseUp);
+    canvas.style.cursor = 'grab';
+
+    /* pause when off-screen */
+    const io = new IntersectionObserver(
+      ([e]) => { s.visible = e.isIntersecting; }, { threshold: 0 }
+    );
+    io.observe(canvas);
+    raf = requestAnimationFrame(draw);
+
+    return () => {
+      cancelAnimationFrame(raf);
+      io.disconnect();
+      canvas.removeEventListener('touchstart', onTouchStart);
+      canvas.removeEventListener('touchmove',  onTouchMove);
+      canvas.removeEventListener('touchend',   onTouchEnd);
+      canvas.removeEventListener('mousedown',  onMouseDown);
+      window.removeEventListener('mousemove',  onMouseMove);
+      window.removeEventListener('mouseup',    onMouseUp);
+    };
   }, []);
 
   return (
-    <div style={{ position:'relative', display:'flex', justifyContent:'center', alignItems:'center' }}>
-      {/* outer glow */}
+    <div style={{ position:'relative', display:'flex', justifyContent:'center', alignItems:'center', userSelect:'none', WebkitUserSelect:'none' }}>
       <div style={{
-        position:'absolute', width:400, height:400, borderRadius:'50%',
-        background:'radial-gradient(circle, rgba(0,255,190,0.06) 0%, transparent 65%)',
-        filter:'blur(30px)', pointerEvents:'none',
+        position:'absolute', width:380, height:380, borderRadius:'50%',
+        background:'radial-gradient(circle, rgba(0,255,185,0.07) 0%, rgba(0,229,255,0.04) 40%, transparent 70%)',
+        filter:'blur(28px)', pointerEvents:'none',
+        animation:'pulse-glow 4s ease-in-out infinite',
       }}/>
-      <canvas ref={ref} width={420} height={420}
-        style={{ position:'relative', zIndex:2, maxWidth:'100%' }}/>
+      <canvas
+        ref={canvasRef}
+        style={{ position:'relative', zIndex:2, maxWidth:'100%', display:'block', touchAction:'none' }}
+      />
     </div>
   );
 }

@@ -9,19 +9,16 @@ export default function Cursor() {
     const ring = ringRef.current;
     if (!dot || !ring) return;
 
-    // Current real mouse position
     let mx = window.innerWidth  / 2;
     let my = window.innerHeight / 2;
-
-    // Ring follows with lerp
     let rx = mx, ry = my;
-
-    // Track visibility
     let visible = false;
+    let moved = false; // only update DOM when position changed
 
     const onMove = (e) => {
       mx = e.clientX;
       my = e.clientY;
+      moved = true;
       if (!visible) {
         dot.style.opacity  = '1';
         ring.style.opacity = '1';
@@ -41,8 +38,6 @@ export default function Cursor() {
     document.addEventListener('mousemove', onMove, { passive: true });
     document.addEventListener('mouseleave', onLeave);
 
-    // Attach hover listeners to interactive elements
-    // Use event delegation so future elements also work
     document.addEventListener('mouseover', (e) => {
       if (e.target.closest('a, button, [data-cursor]')) onEnterEl();
     });
@@ -50,25 +45,30 @@ export default function Cursor() {
       if (e.target.closest('a, button, [data-cursor]')) onLeaveEl();
     });
 
-    // RAF loop — dot is instant, ring lerps fast
+    const LERP = 0.35;
+    const THRESHOLD = 0.1; // skip update if ring movement < 0.1px
     let raf;
-    const LERP = 0.18; // 0.18 = snappy but still smooth
 
     const loop = () => {
-      // Dot: perfectly instant
-      dot.style.left = mx + 'px';
-      dot.style.top  = my + 'px';
+      // Dot: only write when mouse moved
+      if (moved) {
+        dot.style.left = mx + 'px';
+        dot.style.top  = my + 'px';
+        moved = false;
+      }
 
-      // Ring: lerp toward mouse
-      rx += (mx - rx) * LERP;
-      ry += (my - ry) * LERP;
-      ring.style.left = rx + 'px';
-      ring.style.top  = ry + 'px';
+      // Ring: lerp — only write if it actually moved
+      const nx = rx + (mx - rx) * LERP;
+      const ny = ry + (my - ry) * LERP;
+      if (Math.abs(nx - rx) > THRESHOLD || Math.abs(ny - ry) > THRESHOLD) {
+        rx = nx; ry = ny;
+        ring.style.left = rx + 'px';
+        ring.style.top  = ry + 'px';
+      }
 
       raf = requestAnimationFrame(loop);
     };
 
-    // Initially hidden until mouse moves
     dot.style.opacity  = '0';
     ring.style.opacity = '0';
 
